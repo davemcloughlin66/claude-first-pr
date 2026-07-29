@@ -50,6 +50,15 @@
     font-size: 2rem;
   }
 
+  #streakLine {
+    margin-top: 4px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: #565758;
+    letter-spacing: normal;
+    min-height: 1.1em;
+  }
+
   #board {
     display: grid;
     grid-template-rows: repeat(6, 1fr);
@@ -213,8 +222,61 @@
     line-height: 1.5;
   }
 
+  .stats-grid {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 20px 0;
+  }
+
+  .stats-grid > div {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .stat-num {
+    font-size: 1.6rem;
+    font-weight: bold;
+    line-height: 1.2;
+  }
+
+  .stat-label {
+    font-size: 0.65rem;
+    color: #787c7e;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  #shareBtn {
+    display: block;
+    width: 100%;
+    margin-top: 4px;
+    background: #1a1a1b;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 12px 24px;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  #shareBtn:hover {
+    filter: brightness(1.3);
+  }
+
+  #shareBtn.hidden {
+    display: none;
+  }
+
   #playAgain {
-    margin-top: 16px;
+    display: block;
+    width: 100%;
+    margin-top: 10px;
     background: var(--green);
     color: white;
     border: none;
@@ -236,6 +298,7 @@
 
 <header>
   <h1>WORDLE</h1>
+  <div id="streakLine"></div>
 </header>
 
 <div id="message"></div>
@@ -247,6 +310,13 @@
   <div id="modal">
     <h2 id="modalTitle"></h2>
     <p id="modalText"></p>
+    <div id="modalStats" class="stats-grid">
+      <div><span class="stat-num" id="statPlayed">0</span><span class="stat-label">Played</span></div>
+      <div><span class="stat-num" id="statWinPct">0</span><span class="stat-label">Win %</span></div>
+      <div><span class="stat-num" id="statStreak">0</span><span class="stat-label">Streak</span></div>
+      <div><span class="stat-num" id="statMaxStreak">0</span><span class="stat-label">Best</span></div>
+    </div>
+    <button id="shareBtn">Share Results</button>
     <button id="playAgain">Play Again</button>
   </div>
 </div>
@@ -1896,6 +1966,30 @@
   const modalText = document.getElementById("modalText");
   const playAgainBtn = document.getElementById("playAgain");
   const giveUpBtn = document.getElementById("giveUpBtn");
+  const shareBtn = document.getElementById("shareBtn");
+  const streakLine = document.getElementById("streakLine");
+  const statPlayed = document.getElementById("statPlayed");
+  const statWinPct = document.getElementById("statWinPct");
+  const statStreak = document.getElementById("statStreak");
+  const statMaxStreak = document.getElementById("statMaxStreak");
+
+  const STATS_KEY = "wordleCloneStats";
+
+  function loadStats() {
+    try {
+      const raw = localStorage.getItem(STATS_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return { played: 0, won: 0, currentStreak: 0, maxStreak: 0 };
+  }
+
+  function saveStats() {
+    try {
+      localStorage.setItem(STATS_KEY, JSON.stringify(stats));
+    } catch (e) {}
+  }
+
+  let stats = loadStats();
 
   const KEY_ROWS = [
     ["Q","W","E","R","T","Y","U","I","O","P"],
@@ -1909,6 +2003,7 @@
   let gameOver = false;
   let tiles = [];
   let keyEls = {};
+  let guessHistory = [];
 
   function pickWord() {
     return WORDS[Math.floor(Math.random() * WORDS.length)];
@@ -2047,6 +2142,7 @@
     }
 
     applyRowResult(currentRow, guessLetters, result);
+    guessHistory.push(result);
 
     const won = result.every((r) => r === "correct");
 
@@ -2089,6 +2185,67 @@
     });
   }
 
+  function recordResult(won) {
+    stats.played++;
+    if (won) {
+      stats.won++;
+      stats.currentStreak++;
+      stats.maxStreak = Math.max(stats.maxStreak, stats.currentStreak);
+    } else {
+      stats.currentStreak = 0;
+    }
+    saveStats();
+    renderStreak();
+  }
+
+  function renderStreak() {
+    streakLine.textContent = stats.currentStreak > 0
+      ? `🔥 Streak: ${stats.currentStreak}  ·  Best: ${stats.maxStreak}`
+      : stats.maxStreak > 0
+        ? `Best streak: ${stats.maxStreak}`
+        : "";
+  }
+
+  function populateModalStats() {
+    statPlayed.textContent = stats.played;
+    statWinPct.textContent = stats.played > 0 ? Math.round((stats.won / stats.played) * 100) : 0;
+    statStreak.textContent = stats.currentStreak;
+    statMaxStreak.textContent = stats.maxStreak;
+  }
+
+  function buildShareText(won) {
+    const emoji = { correct: "🟩", present: "🟨", absent: "⬛" };
+    const grid = guessHistory.map((row) => row.map((r) => emoji[r]).join("")).join("\n");
+    const label = won ? `${guessHistory.length}/${ROWS}` : `X/${ROWS}`;
+    return `Wordle Clone ${label}\n\n${grid}`;
+  }
+
+  async function shareResults(won) {
+    const text = buildShareText(won);
+    const originalLabel = shareBtn.textContent;
+    try {
+      await navigator.clipboard.writeText(text);
+      shareBtn.textContent = "Copied!";
+    } catch (e) {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand("copy");
+        shareBtn.textContent = "Copied!";
+      } catch (e2) {
+        shareBtn.textContent = "Copy failed";
+      }
+      document.body.removeChild(textarea);
+    }
+    setTimeout(() => {
+      shareBtn.textContent = originalLabel;
+    }, 1500);
+  }
+
   function endGame(won) {
     gameOver = true;
     setTimeout(() => {
@@ -2100,6 +2257,10 @@
         modalTitle.textContent = "😔 Out of Tries";
         modalText.textContent = `The word was "${targetWord}".`;
       }
+      recordResult(won);
+      populateModalStats();
+      shareBtn.classList.remove("hidden");
+      shareBtn.onclick = () => shareResults(won);
       overlay.classList.add("show");
     }, 300);
   }
@@ -2109,6 +2270,9 @@
     gameOver = true;
     modalTitle.textContent = "🏳️ Gave Up";
     modalText.textContent = `The word was "${targetWord}".`;
+    recordResult(false);
+    populateModalStats();
+    shareBtn.classList.add("hidden");
     overlay.classList.add("show");
   }
 
@@ -2117,6 +2281,7 @@
     currentRow = 0;
     currentGuess = "";
     gameOver = false;
+    guessHistory = [];
     message.textContent = "";
     overlay.classList.remove("show");
     buildBoard();
@@ -2138,6 +2303,7 @@
   playAgainBtn.addEventListener("click", resetGame);
   giveUpBtn.addEventListener("click", giveUp);
 
+  renderStreak();
   resetGame();
 })();
 </script>
