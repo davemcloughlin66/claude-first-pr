@@ -152,6 +152,26 @@
     text-align: center;
   }
 
+  #giveUpBtn {
+    background: transparent;
+    color: #a8a8a8;
+    border: 1px solid var(--tile-border-active);
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    margin-bottom: 16px;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+
+  #giveUpBtn:hover {
+    background: #3a3a3c;
+    color: var(--text);
+  }
+
   #overlay {
     position: fixed;
     inset: 0;
@@ -208,6 +228,7 @@
 </header>
 
 <div id="message"></div>
+<button id="giveUpBtn">Give Up</button>
 <div id="board"></div>
 <div id="keyboard"></div>
 
@@ -524,6 +545,7 @@
   const modalTitle = document.getElementById("modalTitle");
   const modalText = document.getElementById("modalText");
   const playAgainBtn = document.getElementById("playAgain");
+  const giveUpBtn = document.getElementById("giveUpBtn");
 
   const KEY_ROWS = [
     ["Q","W","E","R","T","Y","U","I","O","P"],
@@ -726,6 +748,14 @@
     }, 300);
   }
 
+  function giveUp() {
+    if (gameOver) return;
+    gameOver = true;
+    modalTitle.textContent = "🏳️ Gave Up";
+    modalText.textContent = `The word was "${targetWord}".`;
+    overlay.classList.add("show");
+  }
+
   function resetGame() {
     targetWord = pickWord();
     currentRow = 0;
@@ -750,6 +780,7 @@
   });
 
   playAgainBtn.addEventListener("click", resetGame);
+  giveUpBtn.addEventListener("click", giveUp);
 
   resetGame();
 })();
